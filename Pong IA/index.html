@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Cyberpunk Pong</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --neon-magenta: #ff007f;
+            --neon-cyan: #00f0ff;
+            --neon-green: #39ff14;
+            --bg-color: #0b020f;
+            --glow-shadow: 0 0 10px rgba(0, 240, 255, 0.5), 0 0 20px rgba(0, 240, 255, 0.3), 0 0 30px rgba(0, 240, 255, 0.2);
+            --glow-shadow-magenta: 0 0 10px rgba(255, 0, 127, 0.5), 0 0 20px rgba(255, 0, 127, 0.3), 0 0 30px rgba(255, 0, 127, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: #fff;
+            font-family: 'Press Start 2P', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* CRT Screen bend and flicker effect */
+        .crt-container {
+            position: relative;
+            width: 850px;
+            max-width: 95vw;
+            padding: 20px;
+            background: radial-gradient(circle at center, #1a0826 0%, #05010a 100%);
+            border: 6px solid #2d1b3d;
+            border-radius: 20px;
+            box-shadow: 
+                0 0 30px rgba(255, 0, 127, 0.25),
+                inset 0 0 50px rgba(0, 0, 0, 0.9);
+            overflow: hidden;
+        }
+
+        .crt-container::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+        }
+
+        /* Scanline animations and flicker */
+        @keyframes flicker {
+            0% { opacity: 0.985; }
+            50% { opacity: 0.995; }
+            100% { opacity: 0.985; }
+        }
+
+        .crt-effect {
+            animation: flicker 0.15s infinite;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin: 0;
+            color: var(--neon-cyan);
+            text-shadow: var(--glow-shadow);
+            letter-spacing: 2px;
+        }
+
+        .controls-info {
+            font-size: 8px;
+            color: #8b729e;
+            margin-top: 10px;
+            line-height: 1.6;
+        }
+
+        .game-panel {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            background: #020005;
+            border: 3px solid var(--neon-magenta);
+            box-shadow: var(--glow-shadow-magenta);
+            border-radius: 4px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* Overlays (Menus) */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(10, 3, 18, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            transition: opacity 0.3s ease;
+        }
+
+        .overlay.hidden {
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .menu-title {
+            font-size: 28px;
+            color: var(--neon-green);
+            text-shadow: 0 0 10px rgba(57, 255, 20, 0.6);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .menu-btn {
+            font-family: 'Press Start 2P', monospace;
+            background: transparent;
+            color: #fff;
+            border: 2px solid var(--neon-cyan);
+            padding: 12px 24px;
+            margin: 10px;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            text-shadow: var(--glow-shadow);
+            box-shadow: inset 0 0 5px rgba(0, 240, 255, 0.2);
+            transition: all 0.2s ease;
+            width: 280px;
+        }
+
+        .menu-btn:hover {
+            background: var(--neon-cyan);
+            color: #000;
+            box-shadow: var(--glow-shadow);
+            transform: scale(1.05);
+        }
+
+        .difficulty-selector {
+            display: flex;
+            align-items: center;
+            margin-top: 15px;
+            font-size: 10px;
+            gap: 10px;
+        }
+
+        .diff-btn {
+            background: transparent;
+            border: 1px solid #8b729e;
+            color: #8b729e;
+            padding: 6px 12px;
+            font-size: 8px;
+            cursor: pointer;
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        .diff-btn.active {
+            color: var(--neon-magenta);
+            border-color: var(--neon-magenta);
+            text-shadow: var(--glow-shadow-magenta);
+        }
+
+        /* Sound Toggle Switch */
+        .sound-toggle {
+            margin-top: 20px;
+            font-size: 10px;
+            color: #8b729e;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .sound-toggle:hover {
+            color: #fff;
+        }
+
+        footer {
+            margin-top: 15px;
+            font-size: 8px;
+            color: #4a345e;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="crt-container crt-effect">
+        <header>
+            <h1>NEON PONG</h1>
+            <div class="controls-info">
+                P1: W/S (Mover Raqueta Izquierda)<br>
+                P2 / IA: Flechas ↑/↓ (Mover Raqueta Derecha)
+            </div>
+        </header>
+
+        <div class="game-panel">
+            <!-- Main Menu Overlay -->
+            <div id="mainMenu" class="overlay">
+                <div class="menu-title">SELECCIONAR MODO</div>
+                <button class="menu-btn" onclick="startGame('cpu')">1 JUGADOR (VS IA)</button>
+                <button class="menu-btn" onclick="startGame('versus')">2 JUGADORES (LOCAL)</button>
+                
+                <div class="difficulty-selector">
+                    <span>Dificultad IA:</span>
+                    <button class="diff-btn active" id="diff-easy" onclick="setDifficulty('easy')">FÁCIL</button>
+                    <button class="diff-btn" id="diff-medium" onclick="setDifficulty('medium')">MEDIO</button>
+                    <button class="diff-btn" id="diff-hard" onclick="setDifficulty('hard')">DIFÍCIL</button>
+                </div>
+
+                <div class="sound-toggle" onclick="toggleMute()">
+                    AUDIO: <span id="soundStatus" style="color: var(--neon-green)">ENCENDIDO</span>
+                </div>
+            </div>
+
+            <!-- Game Over / Pause Overlay -->
+            <div id="gameOverMenu" class="overlay hidden">
+                <div class="menu-title" id="winnerText">¡JUGADOR 1 GANA!</div>
+                <button class="menu-btn" onclick="showMainMenu()">VOLVER AL MENÚ</button>
+                <button class="menu-btn" onclick="restartCurrentGame()">JUGAR DE NUEVO</button>
+            </div>
+
+            <canvas id="pongCanvas"></canvas>
+        </div>
+    </div>
+
+    <footer>
+        &copy; 2026 Retro Wave Gaming - Antigravity Powered
+    </footer>
+
+    <script>
+        // Web Audio API Synthesizer
+        let audioCtx = null;
+        let isMuted = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playSound(type) {
+            if (isMuted) return;
+            initAudio();
+            if (!audioCtx) return;
+
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'hit') {
+                // Short retro beep
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+                gainNode.gain.setValueAtTime(0.3, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+                osc.start(now);
+                osc.stop(now + 0.1);
+            } else if (type === 'score') {
+                // Success point sound
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.linearRampToValueAtTime(900, now + 0.3);
+                gainNode.gain.setValueAtTime(0.2, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+                osc.start(now);
+                osc.stop(now + 0.35);
+            } else if (type === 'gameover') {
+                // Retro victory fanfare
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.setValueAtTime(600, now + 0.1);
+                osc.frequency.setValueAtTime(800, now + 0.2);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.4);
+                gainNode.gain.setValueAtTime(0.2, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            }
+        }
+
+        function toggleMute() {
+            isMuted = !isMuted;
+            document.getElementById('soundStatus').textContent = isMuted ? 'APAGADO' : 'ENCENDIDO';
+            document.getElementById('soundStatus').style.color = isMuted ? 'var(--neon-magenta)' : 'var(--neon-green)';
+            // Play a test sound if unmuting
+            if (!isMuted) playSound('hit');
+        }
+
+        // Game Variables
+        const canvas = document.getElementById('pongCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Virtual internal dimensions
+        const V_WIDTH = 800;
+        const V_HEIGHT = 600;
+        canvas.width = V_WIDTH;
+        canvas.height = V_HEIGHT;
+
+        let gameMode = 'cpu'; // 'cpu' or 'versus'
+        let aiDifficulty = 'easy'; // 'easy', 'medium', 'hard'
+        let gameRunning = false;
+
+        // Player Paddles and Ball
+        const paddleWidth = 12;
+        const paddleHeight = 90;
+        
+        const player1 = {
+            x: 30,
+            y: V_HEIGHT / 2 - paddleHeight / 2,
+            width: paddleWidth,
+            height: paddleHeight,
+            score: 0,
+            color: '#00f0ff',
+            targetY: V_HEIGHT / 2 - paddleHeight / 2
+        };
+
+        const player2 = {
+            x: V_WIDTH - 30 - paddleWidth,
+            y: V_HEIGHT / 2 - paddleHeight / 2,
+            width: paddleWidth,
+            height: paddleHeight,
+            score: 0,
+            color: '#ff007f',
+            targetY: V_HEIGHT / 2 - paddleHeight / 2
+        };
+
+        const ball = {
+            x: V_WIDTH / 2,
+            y: V_HEIGHT / 2,
+            radius: 8,
+            speed: 6,
+            dx: 5,
+            dy: 3,
+            color: '#39ff14'
+        };
+
+        // Keyboard keys pressed state
+        const keys = {};
+
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (["ArrowUp", "ArrowDown", "w", "s", "W", "S"].indexOf(e.key) > -1) {
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        function setDifficulty(level) {
+            aiDifficulty = level;
+            document.getElementById('diff-easy').classList.remove('active');
+            document.getElementById('diff-medium').classList.remove('active');
+            document.getElementById('diff-hard').classList.remove('active');
+            document.getElementById(`diff-${level}`).classList.add('active');
+        }
+
+        function startGame(mode) {
+            initAudio();
+            gameMode = mode;
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('gameOverMenu').classList.add('hidden');
+            resetGameSession();
+            gameRunning = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function restartCurrentGame() {
+            document.getElementById('gameOverMenu').classList.add('hidden');
+            resetGameSession();
+            gameRunning = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function showMainMenu() {
+            document.getElementById('gameOverMenu').classList.add('hidden');
+            document.getElementById('mainMenu').classList.remove('hidden');
+            gameRunning = false;
+        }
+
+        function resetGameSession() {
+            player1.score = 0;
+            player2.score = 0;
+            resetBall();
+        }
+
+        function resetBall() {
+            ball.x = V_WIDTH / 2;
+            ball.y = V_HEIGHT / 2;
+            ball.dx = (Math.random() > 0.5 ? 1 : -1) * 5;
+            ball.dy = (Math.random() * 2 - 1) * 4;
+            ball.speed = 6;
+        }
+
+        function update() {
+            if (!gameRunning) return;
+
+            const paddleSpeed = 8;
+            if (keys['w'] || keys['W']) {
+                player1.y = Math.max(10, player1.y - paddleSpeed);
+            }
+            if (keys['s'] || keys['S']) {
+                player1.y = Math.min(V_HEIGHT - paddleHeight - 10, player1.y + paddleSpeed);
+            }
+
+            if (gameMode === 'versus') {
+                if (keys['ArrowUp']) {
+                    player2.y = Math.max(10, player2.y - paddleSpeed);
+                }
+                if (keys['ArrowDown']) {
+                    player2.y = Math.min(V_HEIGHT - paddleHeight - 10, player2.y + paddleSpeed);
+                }
+            } else {
+                let aiSpeed = 4;
+                let predictionError = 25;
+
+                if (aiDifficulty === 'medium') {
+                    aiSpeed = 6;
+                    predictionError = 12;
+                } else if (aiDifficulty === 'hard') {
+                    aiSpeed = 8.5;
+                    predictionError = 2;
+                }
+
+                const targetY = ball.y - player2.height / 2;
+                if (Math.abs(player2.y - targetY) > predictionError) {
+                    if (player2.y < targetY) {
+                        player2.y = Math.min(V_HEIGHT - paddleHeight - 10, player2.y + aiSpeed);
+                    } else {
+                        player2.y = Math.max(10, player2.y - aiSpeed);
+                    }
+                }
+            }
+
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+            if (ball.y - ball.radius <= 0) {
+                ball.y = ball.radius;
+                ball.dy *= -1;
+                playSound('hit');
+            } else if (ball.y + ball.radius >= V_HEIGHT) {
+                ball.y = V_HEIGHT - ball.radius;
+                ball.dy *= -1;
+                playSound('hit');
+            }
+
+            if (ball.dx < 0 && ball.x - ball.radius <= player1.x + player1.width) {
+                if (ball.y >= player1.y && ball.y <= player1.y + player1.height) {
+                    ball.x = player1.x + player1.width + ball.radius;
+                    let relativeIntersectY = (player1.y + (player1.height / 2)) - ball.y;
+                    let normalizedIntersectY = (relativeIntersectY / (player1.height / 2));
+                    let bounceAngle = normalizedIntersectY * (Math.PI / 4);
+
+                    ball.speed = Math.min(15, ball.speed + 0.4);
+                    ball.dx = ball.speed * Math.cos(bounceAngle);
+                    ball.dy = ball.speed * -Math.sin(bounceAngle);
+                    playSound('hit');
+                }
+            }
+
+            if (ball.dx > 0 && ball.x + ball.radius >= player2.x) {
+                if (ball.y >= player2.y && ball.y <= player2.y + player2.height) {
+                    ball.x = player2.x - ball.radius;
+                    let relativeIntersectY = (player2.y + (player2.height / 2)) - ball.y;
+                    let normalizedIntersectY = (relativeIntersectY / (player2.height / 2));
+                    let bounceAngle = normalizedIntersectY * (Math.PI / 4);
+
+                    ball.speed = Math.min(15, ball.speed + 0.4);
+                    ball.dx = -ball.speed * Math.cos(bounceAngle);
+                    ball.dy = ball.speed * -Math.sin(bounceAngle);
+                    playSound('hit');
+                }
+            }
+
+            if (ball.x - ball.radius < 0) {
+                player2.score++;
+                playSound('score');
+                checkGameOver();
+            } else if (ball.x + ball.radius > V_WIDTH) {
+                player1.score++;
+                playSound('score');
+                checkGameOver();
+            }
+        }
+
+        function checkGameOver() {
+            const winScore = 5;
+            if (player1.score >= winScore || player2.score >= winScore) {
+                gameRunning = false;
+                const winner = player1.score >= winScore ? 'JUGADOR 1' : (gameMode === 'cpu' ? 'IA' : 'JUGADOR 2');
+                document.getElementById('winnerText').textContent = `¡${winner} GANA!`;
+                document.getElementById('gameOverMenu').classList.remove('hidden');
+                playSound('gameover');
+            } else {
+                resetBall();
+            }
+        }
+
+        function drawGlowRect(x, y, w, h, color, glowRadius = 15) {
+            ctx.shadowBlur = glowRadius;
+            ctx.shadowColor = color;
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, w, h);
+            ctx.shadowBlur = 0;
+        }
+
+        function drawGlowCircle(x, y, r, color, glowRadius = 20) {
+            ctx.shadowBlur = glowRadius;
+            ctx.shadowColor = color;
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function draw() {
+            ctx.fillStyle = '#020005';
+            ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.07)';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([15, 15]);
+            ctx.beginPath();
+            ctx.moveTo(V_WIDTH / 2, 0);
+            ctx.lineTo(V_WIDTH / 2, V_HEIGHT);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.font = '40px "Press Start 2P"';
+            ctx.fillStyle = 'rgba(0, 240, 255, 0.35)';
+            ctx.fillText(player1.score.toString().padStart(2, '0'), V_WIDTH / 4 - 30, 80);
+            ctx.fillStyle = 'rgba(255, 0, 127, 0.35)';
+            ctx.fillText(player2.score.toString().padStart(2, '0'), (3 * V_WIDTH / 4) - 30, 80);
+
+            drawGlowRect(player1.x, player1.y, player1.width, player1.height, player1.color);
+            drawGlowRect(player2.x, player2.y, player2.width, player2.height, player2.color);
+
+            drawGlowCircle(ball.x, ball.y, ball.radius, ball.color);
+        }
+
+        function gameLoop() {
+            if (!gameRunning) return;
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        draw();
+    </script>
+</body>
+</html>
