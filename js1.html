@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>HUGO</title>
+</head>
+
+<body>
+    <h1>My first heading</h1>
+    <h2 id="segundo">segundo titulo</h2>
+    <p>My first paragraph</p>
+    <img src="img1.jpeg" />
+</body>
+<script>
+    console.log("Hola mundo");
+    var x = 6;
+    var y = 8;
+    var suma = x + y;
+    console.log(suma);
+
+    var h1 = document.querySelector("h1");
+    h1.style.color = "red";
+
+    var h2 = document.getElementById("segundo");
+    h2.style.color = "blue";
+
+    //haz un ciclo que escriba hola alternando entre azul y rojo 10 veces en parrafos
+    for (var i = 0; i < 10; i++) {
+        var p = document.createElement("p");
+        p.innerHTML = "hola";
+        if (i % 2 == 0) {
+            p.style.color = "blue";
+        } else {
+            p.style.color = "red";
+        }
+        document.body.appendChild(p);
+    }
+
+</script>
+
+</html>

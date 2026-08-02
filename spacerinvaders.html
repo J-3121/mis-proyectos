@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Invaders - Aprendizaje Paso a Paso</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #0d0f18;
+            color: #ecf0f1;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 10px;
+            color: #78c7b7;
+            text-shadow: 0 0 10px rgba(0, 255, 204, 0.4);
+            font-size: 2rem;
+        }
+
+        p.subtitle {
+            margin-bottom: 20px;
+            color: #a0aab0;
+            font-size: 0.95rem;
+        }
+
+        /* Estilo para nuestro lienzo de juego (Canvas) */
+        #gameCanvas {
+            background-color: #000000;
+            border: 3px solid #00ffcc;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.2);
+            border-radius: 4px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Space Invaders 🚀</h1>
+    <p class="subtitle">Fase 12: Persistencia (localStorage) y Sintetizador de Voz (TTS)</p>
+
+    <!-- Elemento HTML Canvas donde se renderización el juego -->
+    <canvas id="gameCanvas" width="600" height="500"></canvas>
+
+    <script>
+        // =========================================================
+        // FASE 1: Configuración del Lienzo y Contexto 2D
+        // =========================================================
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function dibujarFondo() {
+            ctx.fillStyle = '#0b091a'; // Tono espacio muy oscuro
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+
+        // =========================================================
+        // FASE 2 & 10: La Nave del Jugador (Propiedades y Vidas)
+        // =========================================================
+
+        const jugador = {
+            ancho: 40,
+            alto: 15,
+            x: (canvas.width / 2) - 20,
+            y: canvas.height - 15 - 10,
+            color: '#ffe600',
+            velocidad: 5,
+            vidas: 3
+        };
+
+        const teclas = {
+            Izquierda: false,
+            Derecha: false
+        };
+
+        let puntaje = 0;
+
+        // =========================================================
+        // FASE 12: Persistencia (localStorage) y Voz (Text-to-Speech)
+        // =========================================================
+
+        // 1. Obtener la máxima puntuación guardada en el navegador (localStorage)
+        function obtenerMaximoPuntaje() {
+            const maximo = localStorage.getItem('space_invaders_max_score');
+            return maximo ? parseInt(maximo) : 0;
+        }
+
+        // 2. Guardar el récord si el puntaje actual supera al anterior
+        function registrarPuntaje(score) {
+            const maxActual = obtenerMaximoPuntaje();
+            if (score > maxActual) {
+                localStorage.setItem('space_invaders_max_score', score);
+            }
+        }
+
+        // 3. Sintetizador de Voz Nativo del Navegador (Web Speech API)
+        function decirTexto(mensajeTexto) {
+            if ('speechSynthesis' in window) {
+                // Cancelamos cualquier audio en cola para hablar inmediatamente
+                window.speechSynthesis.cancel();
+
+                const locucion = new SpeechSynthesisUtterance(mensajeTexto);
+                locucion.lang = 'es-ES'; // Idioma español
+                locucion.rate = 1.0;     // Velocidad de locución
+                locucion.pitch = 1.1;    // Tono de voz ligero
+
+                window.speechSynthesis.speak(locucion);
+            }
+        }
+
+        // =========================================================
+        // FASE 4: Sistema de Disparo del Jugador
+        // =========================================================
+
+        const proyectiles = [];
+
+        function disparar() {
+            if (juegoTerminado) return;
+
+            proyectiles.push({
+                x: jugador.x + (jugador.ancho / 2) - 2,
+                y: jugador.y,
+                ancho: 4,
+                alto: 10,
+                velocidad: 10,
+                color: '#00ffff'
+            });
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') teclas.Izquierda = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') teclas.Derecha = true;
+
+            if (e.code === 'Space') {
+                disparar();
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') teclas.Izquierda = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') teclas.Derecha = false;
+        });
+
+        // =========================================================
+        // FASE 5: Generación de la Horda de Enemigos (Matriz/Grilla)
+        // =========================================================
+
+        const enemigos = [];
+        const filasEnemigos = 4;
+        const columnasEnemigos = 8;
+        const enemigoAncho = 30;
+        const enemigoAlto = 20;
+        const enemigoPadding = 15;
+        const enemigoOffsetTop = 40;
+        const enemigoOffsetLeft = 70;
+
+        function crearEnemigos() {
+            for (let f = 0; f < filasEnemigos; f++) {
+                for (let c = 0; c < columnasEnemigos; c++) {
+                    const x = enemigoOffsetLeft + c * (enemigoAncho + enemigoPadding);
+                    const y = enemigoOffsetTop + f * (enemigoAlto + enemigoPadding);
+
+                    enemigos.push({
+                        x: x,
+                        y: y,
+                        ancho: enemigoAncho,
+                        alto: enemigoAlto,
+                        color: '#ff00aa',
+                        vivo: true
+                    });
+                }
+            }
+        }
+
+        crearEnemigos();
+
+        // =========================================================
+        // FASE 11: Torres Defensivas / Escudos Destruibles
+        // =========================================================
+
+        const escudos = [];
+        const cantidadEscudos = 4;
+        const escudoAncho = 60;
+        const escudoAlto = 20;
+
+        function crearEscudos() {
+            const espacioEfectivo = canvas.width / (cantidadEscudos + 1);
+
+            for (let i = 0; i < cantidadEscudos; i++) {
+                const x = espacioEfectivo * (i + 1) - (escudoAncho / 2);
+                const y = jugador.y - 60;
+
+                escudos.push({
+                    x: x,
+                    y: y,
+                    ancho: escudoAncho,
+                    alto: escudoAlto,
+                    salud: 5,
+                    saludMax: 5
+                });
+            }
+        }
+
+        crearEscudos();
+
+        function dibujarEscudos() {
+            escudos.forEach(escudo => {
+                if (escudo.salud > 0) {
+                    const porcentaje = escudo.salud / escudo.saludMax;
+                    if (porcentaje > 0.6) ctx.fillStyle = '#00ff88';
+                    else if (porcentaje > 0.3) ctx.fillStyle = '#ffaa00';
+                    else ctx.fillStyle = '#ff3333';
+
+                    ctx.fillRect(escudo.x, escudo.y, escudo.ancho, escudo.alto);
+                }
+            });
+        }
+
+        // =========================================================
+        // FASE 9: Sistema de Disparos Enemigos Aleatorios
+        // =========================================================
+
+        const proyectilesEnemigos = [];
+
+        function dispararEnemigos() {
+            const enemigosVivos = enemigos.filter(e => e.vivo);
+            if (enemigosVivos.length === 0) return;
+
+            if (Math.random() < 0.015) {
+                const indiceAleatorio = Math.floor(Math.random() * enemigosVivos.length);
+                const tirador = enemigosVivos[indiceAleatorio];
+
+                proyectilesEnemigos.push({
+                    x: tirador.x + (tirador.ancho / 2) - 2,
+                    y: tirador.y + tirador.alto,
+                    ancho: 4,
+                    alto: 10,
+                    velocidad: 4,
+                    color: '#ff3300'
+                });
+            }
+        }
+
+        // =========================================================
+        // FASE 6: Detección de Colisiones AABB
+        // =========================================================
+
+        function detectarColisiones() {
+            for (let i = proyectiles.length - 1; i >= 0; i--) {
+                const p = proyectiles[i];
+
+                for (let j = 0; j < enemigos.length; j++) {
+                    const e = enemigos[j];
+
+                    if (e.vivo) {
+                        if (
+                            p.x < e.x + e.ancho &&
+                            p.x + p.ancho > e.x &&
+                            p.y < e.y + e.alto &&
+                            p.y + p.alto > e.y
+                        ) {
+                            e.vivo = false;
+                            proyectiles.splice(i, 1);
+                            velocidadEnemigos += 0.1;
+                            puntaje += 10;
+                            console.log("Puntaje:", puntaje);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            for (let i = proyectiles.length - 1; i >= 0; i--) {
+                const p = proyectiles[i];
+
+                for (let k = 0; k < escudos.length; k++) {
+                    const esc = escudos[k];
+                    if (esc.salud > 0) {
+                        if (
+                            p.x < esc.x + esc.ancho &&
+                            p.x + p.ancho > esc.x &&
+                            p.y < esc.y + esc.alto &&
+                            p.y + p.alto > esc.y
+                        ) {
+                            esc.salud--;
+                            proyectiles.splice(i, 1);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // =========================================================
+        // FASE 7: Movimiento de la Horda (Patrón Zigzag Descendente)
+        // =========================================================
+
+        let direccionEnemigos = 1;
+        let velocidadEnemigos = 1;
+        const descensoEnemigos = 15;
+
+        function actualizarEnemigos() {
+            let tocoPared = false;
+
+            enemigos.forEach(e => {
+                if (e.vivo) {
+                    if (
+                        (direccionEnemigos === 1 && e.x + e.ancho >= canvas.width) ||
+                        (direccionEnemigos === -1 && e.x <= 0)
+                    ) {
+                        tocoPared = true;
+                    }
+                }
+            });
+
+            if (tocoPared) {
+                direccionEnemigos *= -1;
+                enemigos.forEach(e => {
+                    if (e.vivo) {
+                        e.y += descensoEnemigos;
+                    }
+                });
+            } else {
+                enemigos.forEach(e => {
+                    if (e.vivo) {
+                        e.x += velocidadEnemigos * direccionEnemigos;
+                    }
+                });
+            }
+        }
+
+        // =========================================================
+        // FASE 8, 10 & 12: Estado del Juego, Vidas, Récord y Voz.
+        // =========================================================
+
+        let juegoTerminado = false;
+        let victoria = false;
+
+        function recibirDanioJugador() {
+            jugador.vidas--;
+            jugador.x = (canvas.width / 2) - (jugador.ancho / 2);
+
+            if (jugador.vidas <= 0) {
+                juegoTerminado = true;
+                victoria = false;
+                registrarPuntaje(puntaje); // Guardamos en localStorage
+                decirTexto('Game Over. Tu nave ha sido destruida.'); // Sintetizador de Voz
+            }
+        }
+
+        function comprobarEstadoJuego() {
+            const todosDestruidos = enemigos.every(e => !e.vivo);
+            if (todosDestruidos) {
+                juegoTerminado = true;
+                victoria = true;
+                registrarPuntaje(puntaje); // Guardamos en localStorage
+                decirTexto('¡Felicidades! Has destruido a todos los invasores.'); // Sintetizador de Voz
+                return;
+            }
+
+            enemigos.forEach(e => {
+                if (e.vivo && e.y + e.alto >= jugador.y) {
+                    jugador.vidas = 0;
+                    juegoTerminado = true;
+                    victoria = false;
+                    registrarPuntaje(puntaje);
+                    decirTexto('Game Over. Los invasores han invadido la base.');
+                }
+            });
+        }
+
+        function dibujarUI() {
+            const maxPuntaje = obtenerMaximoPuntaje();
+
+            // Puntaje Actual
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '16px monospace';
+            ctx.fillText(`PUNTOS: ${puntaje}`, 15, 28);
+
+            // Máximo Puntaje Persistente (localStorage)
+            ctx.fillStyle = '#00ffcc';
+            ctx.fillText(`MÁXIMO: ${maxPuntaje}`, 175, 28);
+
+            // Vidas del Jugador
+            ctx.fillStyle = '#ffe600';
+            ctx.fillText(`VIDAS: ${'❤️ '.repeat(Math.max(0, jugador.vidas))}`, canvas.width - 160, 28);
+
+            // Pantalla Final
+            if (juegoTerminado) {
+                ctx.fillStyle = victoria ? '#00ffcc' : '#ff0055';
+                ctx.font = 'bold 36px monospace';
+                ctx.textAlign = 'center';
+
+                const mensaje = victoria ? '¡VICTORIA! 🎉' : '¡GAME OVER! 💀';
+                ctx.fillText(mensaje, canvas.width / 2, canvas.height / 2 - 10);
+
+                ctx.font = '16px monospace';
+                ctx.fillStyle = '#a0aab0';
+                ctx.fillText('Recarga la página (F5) para volver a jugar', canvas.width / 2, (canvas.height / 2) + 35);
+
+                ctx.textAlign = 'start';
+            }
+        }
+
+        // =========================================================
+        // MOTOR DEL JUEGO: Actualizar, Renderizar y Game Loop
+        // =========================================================
+
+        function actualizar() {
+            if (juegoTerminado) return;
+
+            // 1. Movimiento del jugador
+            if (teclas.Izquierda && jugador.x > 0) {
+                jugador.x -= jugador.velocidad;
+            }
+            if (teclas.Derecha && jugador.x < canvas.width - jugador.ancho) {
+                jugador.x += jugador.velocidad;
+            }
+
+            // 2. Movimiento y Limpieza de Proyectiles del Jugador
+            for (let i = proyectiles.length - 1; i >= 0; i--) {
+                const p = proyectiles[i];
+                p.y -= p.velocidad;
+
+                if (p.y + p.alto < 0) {
+                    proyectiles.splice(i, 1);
+                }
+            }
+
+            // 3. Disparos Enemigos y Colisiones
+            dispararEnemigos();
+
+            for (let i = proyectilesEnemigos.length - 1; i >= 0; i--) {
+                const pe = proyectilesEnemigos[i];
+                pe.y += pe.velocidad;
+
+                if (pe.y > canvas.height) {
+                    proyectilesEnemigos.splice(i, 1);
+                    continue;
+                }
+
+                // Colisión Proyectil Enemigo vs Escudos
+                let impactoEscudo = false;
+                for (let k = 0; k < escudos.length; k++) {
+                    const esc = escudos[k];
+                    if (esc.salud > 0) {
+                        if (
+                            pe.x < esc.x + esc.ancho &&
+                            pe.x + pe.ancho > esc.x &&
+                            pe.y < esc.y + esc.alto &&
+                            pe.y + pe.alto > esc.y
+                        ) {
+                            esc.salud--;
+                            proyectilesEnemigos.splice(i, 1);
+                            impactoEscudo = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (impactoEscudo) continue;
+
+                // Colisión Proyectil Enemigo vs Jugador
+                if (
+                    pe.x < jugador.x + jugador.ancho &&
+                    pe.x + pe.ancho > jugador.x &&
+                    pe.y < jugador.y + jugador.alto &&
+                    pe.y + pe.alto > jugador.y
+                ) {
+                    proyectilesEnemigos.splice(i, 1);
+                    recibirDanioJugador();
+                }
+            }
+
+            // 4. Movimiento de enemigos
+            actualizarEnemigos();
+
+            // 5. Colisiones disparos jugador vs enemigos / escudos
+            detectarColisiones();
+
+            // 6. Estado del juego
+            comprobarEstadoJuego();
+        }
+
+        function dibujarJugador() {
+            ctx.fillStyle = jugador.color;
+            ctx.fillRect(jugador.x, jugador.y, jugador.ancho, jugador.alto);
+        }
+
+        function dibujarProyectiles() {
+            proyectiles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.ancho, p.alto);
+            });
+        }
+
+        function dibujarProyectilesEnemigos() {
+            proyectilesEnemigos.forEach(pe => {
+                ctx.fillStyle = pe.color;
+                ctx.fillRect(pe.x, pe.y, pe.ancho, pe.alto);
+            });
+        }
+
+        function dibujarEnemigos() {
+            enemigos.forEach(e => {
+                if (e.vivo) {
+                    ctx.fillStyle = e.color;
+                    ctx.fillRect(e.x, e.y, e.ancho, e.alto);
+                }
+            });
+        }
+
+        function renderizar() {
+            dibujarFondo();
+            dibujarEscudos();
+            dibujarJugador();
+            dibujarProyectiles();
+            dibujarProyectilesEnemigos();
+            dibujarEnemigos();
+            dibujarUI();
+        }
+
+        function bucleJuego() {
+            actualizar();
+            renderizar();
+            requestAnimationFrame(bucleJuego);
+        }
+
+        // Arrancamos el motor del juego
+        bucleJuego();
+    </script>
+</body>
+
+</html>
