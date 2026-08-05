@@ -399,10 +399,11 @@
         }
 
         // =========================================================
-        // FASE 6: Detección de Colisiones AABB
+        // FASE 6: Detección de Colisiones AABB (Proyectiles del Jugador vs Enemigos)
         // =========================================================
 
         function detectarColisiones() {
+            // Nota: Los disparos del jugador atraviesan los escudos libremente sin destruirlos ni ser absorbidos
             for (let i = proyectiles.length - 1; i >= 0; i--) {
                 const p = proyectiles[i];
 
@@ -422,26 +423,6 @@
                             puntaje += 10;
                             enemigosKilled++; // FASE 13: Incrementamos el contador de marcianos K.O.
                             console.log("Puntaje:", puntaje, "K.O.:", enemigosKilled);
-                            break;
-                        }
-                    }
-                }
-            }
-
-            for (let i = proyectiles.length - 1; i >= 0; i--) {
-                const p = proyectiles[i];
-
-                for (let k = 0; k < escudos.length; k++) {
-                    const esc = escudos[k];
-                    if (esc.salud > 0) {
-                        if (
-                            p.x < esc.x + esc.ancho &&
-                            p.x + p.ancho > esc.x &&
-                            p.y < esc.y + esc.alto &&
-                            p.y + p.alto > esc.y
-                        ) {
-                            esc.salud--;
-                            proyectiles.splice(i, 1);
                             break;
                         }
                     }
