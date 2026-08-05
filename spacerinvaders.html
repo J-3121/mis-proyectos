@@ -45,16 +45,94 @@
             border-radius: 4px;
             display: block;
         }
+
+        /* FASE 13: Estilos para la Tabla de Historial de las Últimas 5 Partidas */
+        .leaderboard-container {
+            margin-top: 25px;
+            width: 100%;
+            max-width: 600px;
+            background: rgba(15, 18, 30, 0.85);
+            border: 2px solid #00ffcc;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.15);
+            padding: 15px;
+        }
+
+        .leaderboard-container h2 {
+            color: #00ffcc;
+            font-size: 1.1rem;
+            margin-bottom: 12px;
+            text-shadow: 0 0 8px rgba(0, 255, 204, 0.4);
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        table.leaderboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            color: #ecf0f1;
+        }
+
+        table.leaderboard-table th,
+        table.leaderboard-table td {
+            padding: 8px 10px;
+            text-align: center;
+            border-bottom: 1px solid rgba(0, 255, 204, 0.15);
+        }
+
+        table.leaderboard-table th {
+            color: #ffe600;
+            border-bottom: 2px solid #00ffcc;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+        }
+
+        table.leaderboard-table tr:nth-child(even) {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        .status-win {
+            color: #00ffcc;
+            font-weight: bold;
+        }
+
+        .status-loss {
+            color: #ff0055;
+            font-weight: bold;
+        }
     </style>
 </head>
 
 <body>
 
     <h1>Space Invaders 🚀</h1>
-    <p class="subtitle">Fase 12: Persistencia (localStorage) y Sintetizador de Voz (TTS)</p>
+    <p class="subtitle">Fase 13: Historial de Partidas (JSON.stringify & JSON.parse) y Sintetizador de Voz</p>
 
-    <!-- Elemento HTML Canvas donde se renderización el juego -->
+    <!-- Elemento HTML Canvas donde se renderizará el juego -->
     <canvas id="gameCanvas" width="600" height="500"></canvas>
+
+    <!-- FASE 13: Contenedor y Tabla HTML para el Historial de las Últimas 5 Partidas -->
+    <div class="leaderboard-container">
+        <h2>📊 Historial de las Últimas 5 Partidas 🏆</h2>
+        <table class="leaderboard-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Piloto</th>
+                    <th>Puntos</th>
+                    <th>K.O. Marcianos</th>
+                    <th>Resultado</th>
+                    <th>Fecha / Hora</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpoTablaHistorial">
+                <!-- Se poblará dinámicamente desde JavaScript usando JSON.parse -->
+            </tbody>
+        </table>
+    </div>
 
     <script>
         // =========================================================
@@ -89,12 +167,14 @@
         };
 
         let puntaje = 0;
+        let enemigosKilled = 0; // FASE 13: Contador de enemigos destruidos
+        let registroProcesado = false; // Evita duplicar el registro en el historial
 
         // =========================================================
-        // FASE 12: Persistencia (localStorage) y Voz (Text-to-Speech)
+        // FASE 12 & 13: Persistencia (localStorage), JSON y Voz
         // =========================================================
 
-        // 1. Obtener la máxima puntuación guardada en el navegador (localStorage)
+        // 1. Obtener la máxima puntuación guardada en localStorage
         function obtenerMaximoPuntaje() {
             const maximo = localStorage.getItem('space_invaders_max_score');
             return maximo ? parseInt(maximo) : 0;
@@ -108,16 +188,78 @@
             }
         }
 
-        // 3. Sintetizador de Voz Nativo del Navegador (Web Speech API)
+        // 3. FASE 13: Guardar el Historial de las Últimas 5 Partidas en localStorage (JSON.stringify)
+        function registrarFinDeJuego(gano) {
+            if (registroProcesado) return;
+            registroProcesado = true;
+
+            // Pedimos el nombre al usuario mediante prompt
+            const nombreIngresado = prompt('¡Partida finalizada! Ingresa tu nombre de piloto:', 'Comandante') || 'Piloto Anónimo';
+
+            const fechaActual = new Date();
+            const fechaFormateada = fechaActual.toLocaleDateString('es-ES') + ' ' + fechaActual.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+
+            const nuevaPartida = {
+                nombre: nombreIngresado.trim(),
+                puntos: puntaje,
+                enemigosKilled: enemigosKilled,
+                resultado: gano ? 'Victoria' : 'Derrota',
+                fecha: fechaFormateada
+            };
+
+            // Lectura y Deserialización (JSON.parse)
+            const historialPrevio = JSON.parse(localStorage.getItem('space_invaders_historial')) || [];
+
+            // Añadimos la nueva partida al principio del arreglo
+            historialPrevio.unshift(nuevaPartida);
+
+            // Filtramos para conservar únicamente los últimos 5 registros
+            const ultimosCinco = historialPrevio.slice(0, 5);
+
+            // Serialización y Escritura (JSON.stringify)
+            localStorage.setItem('space_invaders_historial', JSON.stringify(ultimosCinco));
+
+            // Actualizamos récord máximo si corresponde
+            registrarPuntaje(puntaje);
+
+            // Refrescamos la tabla HTML
+            actualizarTablaHistorialUI();
+        }
+
+        // 4. FASE 13: Renderizar la Tabla HTML leyendo de localStorage (JSON.parse)
+        function actualizarTablaHistorialUI() {
+            const cuerpoTabla = document.getElementById('cuerpoTablaHistorial');
+            if (!cuerpoTabla) return;
+
+            // Leemos el string de localStorage y lo deserializamos a arreglo JS con JSON.parse
+            const historial = JSON.parse(localStorage.getItem('space_invaders_historial')) || [];
+
+            if (historial.length === 0) {
+                cuerpoTabla.innerHTML = `<tr><td colspan="6" style="color: #a0aab0; font-style: italic;">No hay partidas registradas aún. ¡Juega tu primera partida!</td></tr>`;
+                return;
+            }
+
+            cuerpoTabla.innerHTML = historial.map((partida, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td><strong>${partida.nombre}</strong></td>
+                    <td style="color: #ffe600;">${partida.puntos}</td>
+                    <td>${partida.enemigosKilled}</td>
+                    <td class="${partida.resultado === 'Victoria' ? 'status-win' : 'status-loss'}">${partida.resultado}</td>
+                    <td style="font-size: 0.75rem; color: #a0aab0;">${partida.fecha}</td>
+                </tr>
+            `).join('');
+        }
+
+        // 5. Sintetizador de Voz Nativo del Navegador (Web Speech API)
         function decirTexto(mensajeTexto) {
             if ('speechSynthesis' in window) {
-                // Cancelamos cualquier audio en cola para hablar inmediatamente
                 window.speechSynthesis.cancel();
 
                 const locucion = new SpeechSynthesisUtterance(mensajeTexto);
-                locucion.lang = 'es-ES'; // Idioma español
-                locucion.rate = 1.0;     // Velocidad de locución
-                locucion.pitch = 1.1;    // Tono de voz ligero
+                locucion.lang = 'es-ES';
+                locucion.rate = 1.0;
+                locucion.pitch = 1.1;
 
                 window.speechSynthesis.speak(locucion);
             }
@@ -278,7 +420,8 @@
                             proyectiles.splice(i, 1);
                             velocidadEnemigos += 0.1;
                             puntaje += 10;
-                            console.log("Puntaje:", puntaje);
+                            enemigosKilled++; // FASE 13: Incrementamos el contador de marcianos K.O.
+                            console.log("Puntaje:", puntaje, "K.O.:", enemigosKilled);
                             break;
                         }
                     }
@@ -345,7 +488,7 @@
         }
 
         // =========================================================
-        // FASE 8, 10 & 12: Estado del Juego, Vidas, Récord y Voz.
+        // FASE 8, 10, 12 & 13: Estado del Juego y Registro de Historial
         // =========================================================
 
         let juegoTerminado = false;
@@ -358,8 +501,8 @@
             if (jugador.vidas <= 0) {
                 juegoTerminado = true;
                 victoria = false;
-                registrarPuntaje(puntaje); // Guardamos en localStorage
-                decirTexto('Game Over. Tu nave ha sido destruida.'); // Sintetizador de Voz
+                registrarFinDeJuego(false); // FASE 13: Pedir nombre y guardar en historial
+                decirTexto('Game Over. Tu nave ha sido destruida.');
             }
         }
 
@@ -368,8 +511,8 @@
             if (todosDestruidos) {
                 juegoTerminado = true;
                 victoria = true;
-                registrarPuntaje(puntaje); // Guardamos en localStorage
-                decirTexto('¡Felicidades! Has destruido a todos los invasores.'); // Sintetizador de Voz
+                registrarFinDeJuego(true); // FASE 13: Pedir nombre y guardar en historial
+                decirTexto('¡Felicidades! Has destruido a todos los invasores.');
                 return;
             }
 
@@ -378,7 +521,7 @@
                     jugador.vidas = 0;
                     juegoTerminado = true;
                     victoria = false;
-                    registrarPuntaje(puntaje);
+                    registrarFinDeJuego(false); // FASE 13: Pedir nombre y guardar en historial
                     decirTexto('Game Over. Los invasores han invadido la base.');
                 }
             });
@@ -540,6 +683,9 @@
             renderizar();
             requestAnimationFrame(bucleJuego);
         }
+
+        // Carga Inicial: Renderizamos la Tabla HTML desde localStorage (JSON.parse)
+        actualizarTablaHistorialUI();
 
         // Arrancamos el motor del juego
         bucleJuego();
