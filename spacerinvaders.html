@@ -109,7 +109,7 @@
 <body>
 
     <h1>Space Invaders 🚀</h1>
-    <p class="subtitle">Fase 13: Historial de Partidas (JSON.stringify & JSON.parse) y Sintetizador de Voz</p>
+    <p class="subtitle">Fase 14: Sistema de Oleadas Progresivas y Resistencia Enemiga</p>
 
     <!-- Elemento HTML Canvas donde se renderizará el juego -->
     <canvas id="gameCanvas" width="600" height="500"></canvas>
@@ -167,20 +167,21 @@
         };
 
         let puntaje = 0;
-        let enemigosKilled = 0; // FASE 13: Contador de enemigos destruidos
-        let registroProcesado = false; // Evita duplicar el registro en el historial
+        let enemigosKilled = 0;
+        let registroProcesado = false;
+
+        // FASE 14: Sistema de Oleadas Progresivas
+        let oleada = 1;
 
         // =========================================================
         // FASE 12 & 13: Persistencia (localStorage), JSON y Voz
         // =========================================================
 
-        // 1. Obtener la máxima puntuación guardada en localStorage
         function obtenerMaximoPuntaje() {
             const maximo = localStorage.getItem('space_invaders_max_score');
             return maximo ? parseInt(maximo) : 0;
         }
 
-        // 2. Guardar el récord si el puntaje actual supera al anterior
         function registrarPuntaje(score) {
             const maxActual = obtenerMaximoPuntaje();
             if (score > maxActual) {
@@ -188,12 +189,10 @@
             }
         }
 
-        // 3. FASE 13: Guardar el Historial de las Últimas 5 Partidas en localStorage (JSON.stringify)
         function registrarFinDeJuego(gano) {
             if (registroProcesado) return;
             registroProcesado = true;
 
-            // Pedimos el nombre al usuario mediante prompt
             const nombreIngresado = prompt('¡Partida finalizada! Ingresa tu nombre de piloto:', 'Comandante') || 'Piloto Anónimo';
 
             const fechaActual = new Date();
@@ -207,31 +206,19 @@
                 fecha: fechaFormateada
             };
 
-            // Lectura y Deserialización (JSON.parse)
             const historialPrevio = JSON.parse(localStorage.getItem('space_invaders_historial')) || [];
-
-            // Añadimos la nueva partida al principio del arreglo
             historialPrevio.unshift(nuevaPartida);
-
-            // Filtramos para conservar únicamente los últimos 5 registros
             const ultimosCinco = historialPrevio.slice(0, 5);
 
-            // Serialización y Escritura (JSON.stringify)
             localStorage.setItem('space_invaders_historial', JSON.stringify(ultimosCinco));
-
-            // Actualizamos récord máximo si corresponde
             registrarPuntaje(puntaje);
-
-            // Refrescamos la tabla HTML
             actualizarTablaHistorialUI();
         }
 
-        // 4. FASE 13: Renderizar la Tabla HTML leyendo de localStorage (JSON.parse)
         function actualizarTablaHistorialUI() {
             const cuerpoTabla = document.getElementById('cuerpoTablaHistorial');
             if (!cuerpoTabla) return;
 
-            // Leemos el string de localStorage y lo deserializamos a arreglo JS con JSON.parse
             const historial = JSON.parse(localStorage.getItem('space_invaders_historial')) || [];
 
             if (historial.length === 0) {
@@ -251,7 +238,6 @@
             `).join('');
         }
 
-        // 5. Sintetizador de Voz Nativo del Navegador (Web Speech API)
         function decirTexto(mensajeTexto) {
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel();
@@ -299,7 +285,7 @@
         });
 
         // =========================================================
-        // FASE 5: Generación de la Horda de Enemigos (Matriz/Grilla)
+        // FASE 5 & 14: Generación de Enemigos y Resistencia por Oleada
         // =========================================================
 
         const enemigos = [];
@@ -308,21 +294,29 @@
         const enemigoAncho = 30;
         const enemigoAlto = 20;
         const enemigoPadding = 15;
-        const enemigoOffsetTop = 40;
+        const enemigoOffsetTop = 45;
         const enemigoOffsetLeft = 70;
 
         function crearEnemigos() {
+            enemigos.length = 0; // Limpiamos el arreglo para la nueva horda
+
+            // FASE 14: En oleadas 3+, las filas superiores tienen 2 de salud (requieren 2 disparos)
             for (let f = 0; f < filasEnemigos; f++) {
                 for (let c = 0; c < columnasEnemigos; c++) {
                     const x = enemigoOffsetLeft + c * (enemigoAncho + enemigoPadding);
                     const y = enemigoOffsetTop + f * (enemigoAlto + enemigoPadding);
+
+                    // La fila superior es más resistente a partir de la oleada 3
+                    const saludMax = (f === 0 && oleada >= 3) ? 2 : 1;
 
                     enemigos.push({
                         x: x,
                         y: y,
                         ancho: enemigoAncho,
                         alto: enemigoAlto,
-                        color: '#ff00aa',
+                        colorBase: '#ff00aa',
+                        salud: saludMax,
+                        saludMax: saludMax,
                         vivo: true
                     });
                 }
@@ -330,6 +324,22 @@
         }
 
         crearEnemigos();
+
+        function dibujarEnemigos() {
+            enemigos.forEach(e => {
+                if (e.vivo) {
+                    // FASE 14: Degradación visual según salud restante del enemigo
+                    if (e.salud === 2) {
+                        ctx.fillStyle = '#a855f7'; // Violeta neón (Enemigo Blindado/Fuerte)
+                    } else if (e.salud === 1 && e.saludMax > 1) {
+                        ctx.fillStyle = '#ff7700'; // Naranja neón (Enemigo Dañado)
+                    } else {
+                        ctx.fillStyle = e.colorBase; // Magenta estándar
+                    }
+                    ctx.fillRect(e.x, e.y, e.ancho, e.alto);
+                }
+            });
+        }
 
         // =========================================================
         // FASE 11: Torres Defensivas / Escudos Destruibles
@@ -341,6 +351,7 @@
         const escudoAlto = 20;
 
         function crearEscudos() {
+            escudos.length = 0;
             const espacioEfectivo = canvas.width / (cantidadEscudos + 1);
 
             for (let i = 0; i < cantidadEscudos; i++) {
@@ -374,7 +385,7 @@
         }
 
         // =========================================================
-        // FASE 9: Sistema de Disparos Enemigos Aleatorios
+        // FASE 9 & 14: Sistema de Disparos Enemigos Progresivo
         // =========================================================
 
         const proyectilesEnemigos = [];
@@ -383,27 +394,32 @@
             const enemigosVivos = enemigos.filter(e => e.vivo);
             if (enemigosVivos.length === 0) return;
 
-            if (Math.random() < 0.015) {
+            // FASE 14: La probabilidad de disparo incrementa ligeramente con cada oleada (máximo 3.5%)
+            const probabilidadDisparo = Math.min(0.035, 0.015 + (oleada - 1) * 0.00335);
+
+            if (Math.random() < probabilidadDisparo) {
                 const indiceAleatorio = Math.floor(Math.random() * enemigosVivos.length);
                 const tirador = enemigosVivos[indiceAleatorio];
+
+                // FASE 14: Velocidad del proyectil enemigo se incrementa ligeramente por oleada
+                const velocidadProyectilEnemigo = Math.min(6, 4 + (oleada - 1) * 0.3);
 
                 proyectilesEnemigos.push({
                     x: tirador.x + (tirador.ancho / 2) - 2,
                     y: tirador.y + tirador.alto,
                     ancho: 4,
                     alto: 10,
-                    velocidad: 4,
+                    velocidad: velocidadProyectilEnemigo,
                     color: '#ff3300'
                 });
             }
         }
 
         // =========================================================
-        // FASE 6: Detección de Colisiones AABB (Proyectiles del Jugador vs Enemigos)
+        // FASE 6 & 14: Colisiones AABB y Daño a Enemigos
         // =========================================================
 
         function detectarColisiones() {
-            // Nota: Los disparos del jugador atraviesan los escudos libremente sin destruirlos ni ser absorbidos
             for (let i = proyectiles.length - 1; i >= 0; i--) {
                 const p = proyectiles[i];
 
@@ -417,12 +433,16 @@
                             p.y < e.y + e.alto &&
                             p.y + p.alto > e.y
                         ) {
-                            e.vivo = false;
-                            proyectiles.splice(i, 1);
-                            velocidadEnemigos += 0.1;
-                            puntaje += 10;
-                            enemigosKilled++; // FASE 13: Incrementamos el contador de marcianos K.O.
-                            console.log("Puntaje:", puntaje, "K.O.:", enemigosKilled);
+                            proyectiles.splice(i, 1); // El proyectil se consume al impactar
+                            e.salud--; // FASE 14: Restamos resistencia al enemigo
+
+                            if (e.salud <= 0) {
+                                e.vivo = false;
+                                velocidadEnemigos += 0.05;
+                                puntaje += 10 * oleada; // FASE 14: Más puntos en oleadas superiores
+                                enemigosKilled++;
+                                console.log("Puntaje:", puntaje, "K.O.:", enemigosKilled);
+                            }
                             break;
                         }
                     }
@@ -431,7 +451,7 @@
         }
 
         // =========================================================
-        // FASE 7: Movimiento de la Horda (Patrón Zigzag Descendente)
+        // FASE 7 & 14: Movimiento de la Horda (Zigzag con Velocidad Base por Oleada)
         // =========================================================
 
         let direccionEnemigos = 1;
@@ -469,11 +489,24 @@
         }
 
         // =========================================================
-        // FASE 8, 10, 12 & 13: Estado del Juego y Registro de Historial
+        // FASE 8, 14: Estado del Juego y Progresión de Oleadas
         // =========================================================
 
         let juegoTerminado = false;
         let victoria = false;
+
+        function pasarASiguienteOleada() {
+            oleada++;
+            proyectiles.length = 0;
+            proyectilesEnemigos.length = 0;
+
+            // Incrementamos la velocidad base de la nueva horda gradualmente
+            velocidadEnemigos = 1 + (oleada - 1) * 0.25;
+            direccionEnemigos = 1;
+
+            crearEnemigos();
+            decirTexto(`Oleada ${oleada}`);
+        }
 
         function recibirDanioJugador() {
             jugador.vidas--;
@@ -482,18 +515,16 @@
             if (jugador.vidas <= 0) {
                 juegoTerminado = true;
                 victoria = false;
-                registrarFinDeJuego(false); // FASE 13: Pedir nombre y guardar en historial
+                registrarFinDeJuego(false);
                 decirTexto('Game Over. Tu nave ha sido destruida.');
             }
         }
 
         function comprobarEstadoJuego() {
+            // FASE 14: Al destruir todos los enemigos de la oleada actual, pasamos a la siguiente oleada
             const todosDestruidos = enemigos.every(e => !e.vivo);
-            if (todosDestruidos) {
-                juegoTerminado = true;
-                victoria = true;
-                registrarFinDeJuego(true); // FASE 13: Pedir nombre y guardar en historial
-                decirTexto('¡Felicidades! Has destruido a todos los invasores.');
+            if (todosDestruidos && !juegoTerminado) {
+                pasarASiguienteOleada();
                 return;
             }
 
@@ -502,7 +533,7 @@
                     jugador.vidas = 0;
                     juegoTerminado = true;
                     victoria = false;
-                    registrarFinDeJuego(false); // FASE 13: Pedir nombre y guardar en historial
+                    registrarFinDeJuego(false);
                     decirTexto('Game Over. Los invasores han invadido la base.');
                 }
             });
@@ -513,24 +544,28 @@
 
             // Puntaje Actual
             ctx.fillStyle = '#ffffff';
-            ctx.font = '16px monospace';
+            ctx.font = '15px monospace';
             ctx.fillText(`PUNTOS: ${puntaje}`, 15, 28);
 
-            // Máximo Puntaje Persistente (localStorage)
+            // FASE 14: Indicador de Oleada Actual
             ctx.fillStyle = '#00ffcc';
-            ctx.fillText(`MÁXIMO: ${maxPuntaje}`, 175, 28);
+            ctx.fillText(`OLEADA: ${oleada}`, 145, 28);
+
+            // Máximo Puntaje Persistente (localStorage)
+            ctx.fillStyle = '#a0aab0';
+            ctx.fillText(`MÁXIMO: ${maxPuntaje}`, 250, 28);
 
             // Vidas del Jugador
             ctx.fillStyle = '#ffe600';
-            ctx.fillText(`VIDAS: ${'❤️ '.repeat(Math.max(0, jugador.vidas))}`, canvas.width - 160, 28);
+            ctx.fillText(`VIDAS: ${'❤️ '.repeat(Math.max(0, jugador.vidas))}`, canvas.width - 150, 28);
 
-            // Pantalla Final
+            // Pantalla Final (Si pierde el jugador)
             if (juegoTerminado) {
                 ctx.fillStyle = victoria ? '#00ffcc' : '#ff0055';
                 ctx.font = 'bold 36px monospace';
                 ctx.textAlign = 'center';
 
-                const mensaje = victoria ? '¡VICTORIA! 🎉' : '¡GAME OVER! 💀';
+                const mensaje = victoria ? '¡VICTORIA TOTAL! 🎉' : '¡GAME OVER! 💀';
                 ctx.fillText(mensaje, canvas.width / 2, canvas.height / 2 - 10);
 
                 ctx.font = '16px monospace';
@@ -614,7 +649,7 @@
             // 4. Movimiento de enemigos
             actualizarEnemigos();
 
-            // 5. Colisiones disparos jugador vs enemigos / escudos
+            // 5. Colisiones disparos jugador vs enemigos
             detectarColisiones();
 
             // 6. Estado del juego
@@ -640,13 +675,10 @@
             });
         }
 
-        function dibujarEnemigos() {
-            enemigos.forEach(e => {
-                if (e.vivo) {
-                    ctx.fillStyle = e.color;
-                    ctx.fillRect(e.x, e.y, e.ancho, e.alto);
-                }
-            });
+        function bucleJuego() {
+            actualizar();
+            renderizar();
+            requestAnimationFrame(bucleJuego);
         }
 
         function renderizar() {
@@ -659,13 +691,7 @@
             dibujarUI();
         }
 
-        function bucleJuego() {
-            actualizar();
-            renderizar();
-            requestAnimationFrame(bucleJuego);
-        }
-
-        // Carga Inicial: Renderizamos la Tabla HTML desde localStorage (JSON.parse)
+        // Carga Inicial: Renderizamos la Tabla HTML desde localStorage
         actualizarTablaHistorialUI();
 
         // Arrancamos el motor del juego
